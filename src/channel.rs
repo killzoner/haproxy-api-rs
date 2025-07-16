@@ -10,6 +10,7 @@ pub struct Channel(Table);
 
 impl Channel {
     /// Copies the string string at the end of incoming data of the channel buffer.
+    ///
     /// Returns the copied length on success or -1 if data cannot be copied.
     #[inline]
     pub fn append(&self, data: impl AsRef<[u8]>) -> Result<isize> {
@@ -17,6 +18,7 @@ impl Channel {
     }
 
     /// Returns `length` bytes of incoming data from the channel buffer, starting at the `offset`.
+    ///
     /// The data are not removed from the buffer.
     #[inline]
     pub fn data(&self, offset: Option<isize>, length: Option<isize>) -> Result<Option<LuaString>> {
@@ -28,6 +30,7 @@ impl Channel {
     }
 
     /// Forwards `length` bytes of data from the channel buffer.
+    ///
     /// Returns the amount of data forwarded and must not be called from an action to avoid yielding.
     #[inline]
     pub fn forward(&self, length: usize) -> Result<usize> {
@@ -41,6 +44,7 @@ impl Channel {
     }
 
     /// Copies the `data` at the `offset` in incoming data of the channel buffer.
+    ///
     /// Returns the copied length on success or -1 if data cannot be copied.
     ///
     /// By default, if no `offset` is provided, the string is copied in front of incoming data.
@@ -90,6 +94,7 @@ impl Channel {
     }
 
     /// Copies the `data` in front of incoming data of the channel buffer.
+    ///
     /// Returns the copied length on success or -1 if data cannot be copied.
     #[inline]
     pub fn prepend(&self, data: impl AsRef<[u8]>) -> Result<isize> {
@@ -97,6 +102,7 @@ impl Channel {
     }
 
     /// Removes `length` bytes of incoming data of the channel buffer, starting at `offset`.
+    ///
     /// Returns number of bytes removed on success.
     #[inline]
     pub fn remove(&self, offset: Option<isize>, length: Option<usize>) -> Result<isize> {
@@ -108,6 +114,7 @@ impl Channel {
     }
 
     /// Requires immediate send of the `data`.
+    ///
     /// It means the `data` is copied at the beginning of incoming data of the channel buffer and immediately forwarded.
     #[inline]
     pub fn send(&self, data: impl AsRef<[u8]>) -> Result<isize> {
@@ -115,6 +122,7 @@ impl Channel {
     }
 
     /// Replaces `length` bytes of incoming data of the channel buffer, starting at `offset`, by the new `data`.
+    ///
     /// Returns the copied length on success or -1 if data cannot be copied.
     #[inline]
     pub fn set(

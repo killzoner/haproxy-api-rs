@@ -6,17 +6,16 @@ use std::sync::OnceLock;
 use std::task::{Context, Poll};
 
 use dashmap::DashMap;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::TcpListener;
-use tokio::runtime;
-use tokio::sync::oneshot::{self, Receiver};
-
 use futures_util::future::Either;
 use mlua::{
     ExternalResult, FromLuaMulti, Function, IntoLuaMulti, Lua, RegistryKey, Result, Table,
     UserData, UserDataMethods, Value,
 };
 use rustc_hash::FxBuildHasher;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::net::TcpListener;
+use tokio::runtime;
+use tokio::sync::oneshot::{self, Receiver};
 
 // Using `u16` will give us max 65536 receivers to store.
 // If for any reason future was not picked up by the notification listener,
@@ -228,7 +227,7 @@ impl<'lua> Drop for YieldFixUp<'lua> {
             let coroutine: Table = self.0.globals().get("coroutine")?;
             coroutine.set("yield", &self.1)
         })() {
-            println!("Error in YieldFixUp destructor: {e}");
+            eprintln!("Error in YieldFixUp destructor: {e}");
         }
     }
 }

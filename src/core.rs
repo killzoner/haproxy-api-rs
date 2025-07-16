@@ -3,12 +3,16 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::ops::Deref;
 
-use mlua::{AnyUserData, AsChunk, FromLuaMulti, IntoLua, Lua, ObjectLike, Result, Table, Value};
+use mlua::{
+    AnyUserData, AsChunk, Chunk, FromLuaMulti, IntoLua, Lua, ObjectLike, Result, Table, Value,
+};
 
 use crate::filter::UserFilterWrapper;
-use crate::{Proxy, UserFilter};
+use crate::{EventSub, Proxy, UserFilter};
 
 /// The "Core" class contains all the HAProxy core functions.
+///
+/// It derefs to a Lua table, so you can use it as a Lua table directly.
 #[derive(Clone)]
 pub struct Core<'lua> {
     lua: &'lua Lua,
@@ -128,7 +132,7 @@ impl<'lua> Core<'lua> {
 
     /// Returns HAProxy core information (uptime, pid, memory pool usage, tasks number, ...).
     #[inline]
-    pub fn get_info(&self) -> Result<Vec<String>> {
+    pub fn get_info(&self) -> Result<Table> {
         self.class.call_function("get_info", ())
     }
 
@@ -336,9 +340,9 @@ impl<'lua> Core<'lua> {
         self.class.call_function("match_addr", (addr1, addr2))
     }
 
-    pub fn event_sub(&self, event_types: &[&str], code: impl AsChunk) -> Result<()> {
-        let func = self.lua.load(code).into_function()?;
-        self.class.call_function("event_sub", (event_types, func))
+    /// Register a Lua function that will be called on specific system events.
+    pub fn event_sub(&self, event_types: &[&str], code: impl AsChunk) -> Result<EventSub> {
+        (self.class).call_function("event_sub", (event_types, Chunk::wrap(code)))
     }
 }
 

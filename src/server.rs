@@ -2,7 +2,7 @@ use std::ops::Deref;
 
 use mlua::{AsChunk, Chunk, FromLua, Lua, ObjectLike, Result, Table, Value};
 
-use crate::Proxy;
+use crate::{EventSub, Proxy};
 
 /// The "Server" class provides a way for manipulating servers and retrieving information.
 #[derive(Clone)]
@@ -53,7 +53,7 @@ impl Server {
     /// Return the number of pending connections to the server.
     #[inline]
     pub fn get_pend_conn(&self) -> Result<u64> {
-        self.0.call_method("get_pend_sess", ())
+        self.0.call_method("get_pend_conn", ())
     }
 
     /// Dynamically changes the maximum connections of the server.
@@ -196,9 +196,9 @@ impl Server {
 
     /// Register a function that will be called on specific server events.
     ///
-    /// It works exactly like `core.event_sub()`` except that the subscription
+    /// It works exactly like `core.event_sub()` except that the subscription
     /// will be performed within the server dedicated subscription list instead of the global one.
-    pub fn event_sub(&self, event_types: &[&str], code: impl AsChunk) -> Result<()> {
+    pub fn event_sub(&self, event_types: &[&str], code: impl AsChunk) -> Result<EventSub> {
         self.0
             .call_function("event_sub", (event_types, Chunk::wrap(code)))
     }

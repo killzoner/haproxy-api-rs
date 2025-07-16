@@ -39,10 +39,7 @@ impl Txn {
 
     /// Sends a log line with the default loglevel for the proxy associated with the transaction.
     #[inline]
-    pub fn deflog<S>(&self, msg: &S) -> Result<()>
-    where
-        S: AsRef<str> + ?Sized,
-    {
+    pub fn deflog(&self, msg: impl AsRef<str>) -> Result<()> {
         self.class.call_method("deflog", msg.as_ref())
     }
 

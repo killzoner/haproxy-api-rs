@@ -5,18 +5,21 @@ use mlua::{FromLua, Lua, ObjectLike, Result, String as LuaString, Table, Value};
 use crate::{Channel, Headers};
 
 /// This class contains all functions to manipulate an HTTP message.
+///
 /// For now, this class is only available from a filter context.
 #[derive(Clone)]
 pub struct HttpMessage(Table);
 
 impl HttpMessage {
-    /// Appends an HTTP header field in the HTTP message whose name is specified in `name` and value is defined in `value`.
+    /// Appends an HTTP header field in the HTTP message whose name is specified in `name`
+    /// and value is defined in `value`.
     #[inline]
     pub fn add_header(&self, name: &str, value: impl AsRef<[u8]>) -> Result<()> {
-        self.0.call_method("add_header", (name, LuaString::wrap(value)))
+        (self.0).call_method("add_header", (name, LuaString::wrap(value)))
     }
 
     /// Copies the string at the end of incoming data of the HTTP message.
+    ///
     /// The function returns the copied length on success or -1 if data cannot be copied.
     #[inline]
     pub fn append(&self, data: impl AsRef<[u8]>) -> Result<isize> {
@@ -24,6 +27,7 @@ impl HttpMessage {
     }
 
     /// Returns `length` bytes of incoming data from the HTTP message, starting at the `offset`.
+    ///
     /// The data are not removed from the buffer.
     #[inline]
     pub fn body(&self, offset: Option<isize>, length: Option<isize>) -> Result<Option<LuaString>> {
@@ -65,6 +69,7 @@ impl HttpMessage {
     }
 
     /// Forwards `length` bytes of data from the HTTP message.
+    ///
     /// Returns the amount of data forwarded.
     ///
     /// Because it is called in the filter context, it never yield.
@@ -81,6 +86,7 @@ impl HttpMessage {
     }
 
     /// Copies the `data` at the `offset` in incoming data of the HTTP message.
+    ///
     /// Returns the copied length on success or -1 if data cannot be copied.
     ///
     /// By default, if no `offset` is provided, the string is copied in front of incoming data.
@@ -88,7 +94,7 @@ impl HttpMessage {
     #[inline]
     pub fn insert(&self, data: impl AsRef<[u8]>, offset: Option<isize>) -> Result<isize> {
         let offset = offset.unwrap_or(0);
-        self.0.call_method::<isize>("insert", (LuaString::wrap(data), offset))
+        (self.0).call_method::<isize>("insert", (LuaString::wrap(data), offset))
     }
 
     /// Returns true if the HTTP message is full.
@@ -116,13 +122,15 @@ impl HttpMessage {
     }
 
     /// Copies the `data` in front of incoming data of the HTTP message.
+    ///
     /// Returns the copied length on success or -1 if data cannot be copied.
     #[inline]
     pub fn prepend(&self, data: impl AsRef<[u8]>) -> Result<isize> {
-        self.0.call_method::<isize>("prepend", LuaString::wrap(data))
+        (self.0).call_method::<isize>("prepend", LuaString::wrap(data))
     }
 
     /// Removes `length` bytes of incoming data of the HTTP message, starting at `offset`.
+    ///
     /// Returns number of bytes removed on success.
     #[inline]
     pub fn remove(&self, offset: Option<isize>, length: Option<usize>) -> Result<isize> {
@@ -153,6 +161,7 @@ impl HttpMessage {
     }
 
     /// Requires immediate send of the `data`.
+    ///
     /// It means the `data` is copied at the beginning of incoming data of the HTTP message and immediately forwarded.
     ///
     /// Because it is called in the filter context, it never yield.
@@ -162,6 +171,7 @@ impl HttpMessage {
     }
 
     /// Replaces `length` bytes of incoming data of the HTTP message, starting at `offset`, by the string `data`.
+    ///
     /// Returns the copied length on success or -1 if data cannot be copied.
     #[inline]
     pub fn set(
@@ -178,6 +188,22 @@ impl HttpMessage {
         }
     }
 
+    /// Changes the expected payload length of the HTTP message.
+    ///
+    /// Returns `true` if the payload length was successfully updated, `false` otherwise.
+    ///
+    /// If `length` is `None`, the HTTP message is forced to be chunk-encoded.
+    /// In that case, a `Transfer-Encoding` header is added with the “chunked” value.
+    ///
+    /// This function should be used in the filter context to be able to alter the payload of the HTTP message.
+    #[inline]
+    pub fn set_body_len(&self, length: Option<usize>) -> Result<bool> {
+        match length {
+            Some(length) => self.0.call_method("set_body_len", length),
+            None => self.0.call_method("set_body_len", "chunked"),
+        }
+    }
+
     /// Sets or removes the flag that indicates end of message.
     #[inline]
     pub fn set_eom(&self, eom: bool) -> Result<()> {
@@ -190,7 +216,7 @@ impl HttpMessage {
     /// Replaces all occurrence of all header matching the `name`, by only one containing the `value`.
     #[inline]
     pub fn set_header(&self, name: &str, value: impl AsRef<[u8]>) -> Result<()> {
-        self.0.call_method("set_header", (name, LuaString::wrap(value)))
+        (self.0).call_method("set_header", (name, LuaString::wrap(value)))
     }
 
     /// Rewrites the request method.
