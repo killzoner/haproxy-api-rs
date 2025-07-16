@@ -107,10 +107,10 @@ impl BrotliFilter {
         self.writer = Some(CompressorWriter::with_encoder(encoder, buf));
 
         // Update response headers
-        msg.del_header("content-length")?;
         msg.set_header("content-encoding", "br")?;
-        msg.set_header("transfer-encoding", "chunked")?;
-        msg.add_header("vary", "Accept-Encoding")?;
+        msg.add_header("vary", "accept-encoding")?;
+        // switch to chunked transfer encoding
+        msg.set_body_len(None)?;
 
         Self::register_data_filter(lua, txn, msg.channel()?)
     }
