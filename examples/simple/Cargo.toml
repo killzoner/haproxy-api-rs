@@ -8,4 +8,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 haproxy-api = { path = "../.." }
-mlua = { version = "0.9", features = ["macros"] }
+mlua = { version = "0.11", features = ["macros"] }

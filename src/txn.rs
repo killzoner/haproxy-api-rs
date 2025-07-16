@@ -1,32 +1,32 @@
 use std::ops::Deref;
 
-use mlua::{FromLua, IntoLua, Lua, Result, Table, TableExt, Value};
+use mlua::{FromLua, IntoLua, Lua, ObjectLike, Result, Table, Value};
 
 use crate::{Converters, Fetches, Http, HttpMessage, LogLevel};
 
 /// The txn class contain all the functions relative to the http or tcp transaction.
 #[derive(Clone)]
-pub struct Txn<'lua> {
-    class: Table<'lua>,
-    pub c: Converters<'lua>,
-    pub f: Fetches<'lua>,
-    pub(crate) r#priv: Value<'lua>,
+pub struct Txn {
+    class: Table,
+    pub c: Converters,
+    pub f: Fetches,
+    pub(crate) r#priv: Value,
 }
 
-impl<'lua> Txn<'lua> {
+impl Txn {
     /// Returns an HTTP class object.
     #[inline]
-    pub fn http(&self) -> Result<Http<'lua>> {
+    pub fn http(&self) -> Result<Http> {
         self.class.get("http")
     }
 
     /// Returns the request HTTPMessage object.
-    pub fn http_req(&self) -> Result<HttpMessage<'lua>> {
+    pub fn http_req(&self) -> Result<HttpMessage> {
         self.class.get("http_req")
     }
 
     /// Returns the response HTTPMessage object.
-    pub fn http_res(&self) -> Result<HttpMessage<'lua>> {
+    pub fn http_res(&self) -> Result<HttpMessage> {
         self.class.get("http_res")
     }
 
@@ -48,32 +48,32 @@ impl<'lua> Txn<'lua> {
 
     /// Returns data stored in the current transaction (with the `set_priv()`) function.
     #[inline]
-    pub fn get_priv<R: FromLua<'lua>>(&self) -> Result<R> {
+    pub fn get_priv<R: FromLua>(&self) -> Result<R> {
         self.class.call_method("get_priv", ())
     }
 
     /// Stores any data in the current HAProxy transaction.
     /// This action replaces the old stored data.
     #[inline]
-    pub fn set_priv<A: IntoLua<'lua>>(&self, val: A) -> Result<()> {
+    pub fn set_priv(&self, val: impl IntoLua) -> Result<()> {
         self.class.call_method("set_priv", val)
     }
 
     /// Returns data stored in the variable `name`.
     #[inline]
-    pub fn get_var<R: FromLua<'lua>>(&self, name: &str) -> Result<R> {
+    pub fn get_var<R: FromLua>(&self, name: &str) -> Result<R> {
         self.class.call_method("get_var", name)
     }
 
     /// Store variable `name` in an HAProxy converting the type.
     #[inline]
-    pub fn set_var<A: IntoLua<'lua>>(&self, name: &str, val: A) -> Result<()> {
+    pub fn set_var(&self, name: &str, val: impl IntoLua) -> Result<()> {
         self.class.call_method("set_var", (name, val))
     }
 
     /// Store variable `name` in an HAProxy if the variable already exists.
     #[inline]
-    pub fn set_var_if_exists<A: IntoLua<'lua>>(&self, name: &str, val: A) -> Result<()> {
+    pub fn set_var_if_exists(&self, name: &str, val: impl IntoLua) -> Result<()> {
         self.class.call_method("set_var", (name, val, true))
     }
 
@@ -91,9 +91,9 @@ impl<'lua> Txn<'lua> {
     }
 }
 
-impl<'lua> FromLua<'lua> for Txn<'lua> {
+impl FromLua for Txn {
     #[inline]
-    fn from_lua(value: Value<'lua>, lua: &'lua Lua) -> Result<Self> {
+    fn from_lua(value: Value, lua: &Lua) -> Result<Self> {
         let class = Table::from_lua(value, lua)?;
         Ok(Txn {
             c: class.get("c")?,
@@ -104,8 +104,8 @@ impl<'lua> FromLua<'lua> for Txn<'lua> {
     }
 }
 
-impl<'lua> Deref for Txn<'lua> {
-    type Target = Table<'lua>;
+impl Deref for Txn {
+    type Target = Table;
 
     #[inline]
     fn deref(&self) -> &Self::Target {

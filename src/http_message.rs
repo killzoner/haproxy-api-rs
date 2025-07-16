@@ -1,76 +1,67 @@
 use std::ops::Deref;
 
-use mlua::{FromLua, Lua, Result, String as LuaString, Table, TableExt, Value};
+use mlua::{FromLua, Lua, ObjectLike, Result, String as LuaString, Table, Value};
 
 use crate::{Channel, Headers};
 
 /// This class contains all functions to manipulate an HTTP message.
 /// For now, this class is only available from a filter context.
 #[derive(Clone)]
-pub struct HttpMessage<'lua> {
-    lua: &'lua Lua,
-    class: Table<'lua>,
-}
+pub struct HttpMessage(Table);
 
-impl<'lua> HttpMessage<'lua> {
+impl HttpMessage {
     /// Appends an HTTP header field in the HTTP message whose name is specified in `name` and value is defined in `value`.
     #[inline]
     pub fn add_header(&self, name: &str, value: impl AsRef<[u8]>) -> Result<()> {
-        let value = self.lua.create_string(value.as_ref())?;
-        self.class.call_method("add_header", (name, value))
+        self.0.call_method("add_header", (name, LuaString::wrap(value)))
     }
 
     /// Copies the string at the end of incoming data of the HTTP message.
     /// The function returns the copied length on success or -1 if data cannot be copied.
     #[inline]
     pub fn append(&self, data: impl AsRef<[u8]>) -> Result<isize> {
-        let data = self.lua.create_string(data.as_ref())?;
-        self.class.call_method("append", data)
+        self.0.call_method("append", LuaString::wrap(data))
     }
 
     /// Returns `length` bytes of incoming data from the HTTP message, starting at the `offset`.
     /// The data are not removed from the buffer.
     #[inline]
-    pub fn body(
-        &self,
-        offset: Option<isize>,
-        length: Option<isize>,
-    ) -> Result<Option<LuaString<'lua>>> {
+    pub fn body(&self, offset: Option<isize>, length: Option<isize>) -> Result<Option<LuaString>> {
         let offset = offset.unwrap_or(0);
         match length {
-            Some(length) => self.class.call_method("body", (offset, length)),
-            None => self.class.call_method("body", offset),
+            Some(length) => self.0.call_method("body", (offset, length)),
+            None => self.0.call_method("body", offset),
         }
     }
 
     /// Returns a corresponding channel attached to the HTTP message.
     #[inline]
-    pub fn channel(&self) -> Result<Channel<'lua>> {
-        self.class.raw_get("channel")
+    pub fn channel(&self) -> Result<Channel> {
+        self.0.raw_get("channel")
     }
 
     /// Returns true if the end of message is reached.
     #[inline]
     pub fn eom(&self) -> Result<bool> {
-        self.class.call_method("eom", ())
+        self.0.call_method("eom", ())
     }
 
     /// Removes all HTTP header fields in the HTTP message whose name is specified in name.
     #[inline]
     pub fn del_header(&self, name: &str) -> Result<()> {
-        self.class.call_method("del_header", name)
+        self.0.call_method("del_header", name)
     }
 
     /// Returns a table containing all the headers of the HTTP message.
     #[inline]
-    pub fn get_headers(&self) -> Result<Headers<'lua>> {
-        self.class.call_method("get_headers", ())
+    pub fn get_headers(&self) -> Result<Headers> {
+        self.0.call_method("get_headers", ())
     }
 
     /// Returns a table containing the start-line of the HTTP message.
     #[inline]
-    pub fn get_stline(&self) -> Result<Table<'lua>> {
-        self.class.call_method("get_stline", ())
+    pub fn get_stline(&self) -> Result<Table> {
+        self.0.call_method("get_stline", ())
     }
 
     /// Forwards `length` bytes of data from the HTTP message.
@@ -80,13 +71,13 @@ impl<'lua> HttpMessage<'lua> {
     /// Only available incoming data may be forwarded, event if the requested length exceeds the available amount of incoming data.
     #[inline]
     pub fn forward(&self, length: usize) -> Result<usize> {
-        self.class.call_method("forward", length)
+        self.0.call_method("forward", length)
     }
 
     /// Returns the length of incoming data in the HTTP message from the calling filter point of view.
     #[inline]
     pub fn input(&self) -> Result<usize> {
-        self.class.call_method("input", ())
+        self.0.call_method("input", ())
     }
 
     /// Copies the `data` at the `offset` in incoming data of the HTTP message.
@@ -96,41 +87,39 @@ impl<'lua> HttpMessage<'lua> {
     /// A positive `offset` is relative to the beginning of incoming data of the channel buffer while negative offset is relative to their end.
     #[inline]
     pub fn insert(&self, data: impl AsRef<[u8]>, offset: Option<isize>) -> Result<isize> {
-        let data = self.lua.create_string(data.as_ref())?;
         let offset = offset.unwrap_or(0);
-        self.class.call_method::<_, isize>("insert", (data, offset))
+        self.0.call_method::<isize>("insert", (LuaString::wrap(data), offset))
     }
 
     /// Returns true if the HTTP message is full.
     #[inline]
     pub fn is_full(&self) -> Result<bool> {
-        self.class.call_method("is_full", ())
+        self.0.call_method("is_full", ())
     }
 
     /// Returns true if the HTTP message is the response one.
     #[inline]
     pub fn is_resp(&self) -> Result<bool> {
-        self.class.call_method("is_resp", ())
+        self.0.call_method("is_resp", ())
     }
 
     /// Returns true if the HTTP message may still receive data.
     #[inline]
     pub fn may_recv(&self) -> Result<bool> {
-        self.class.call_method("may_recv", ())
+        self.0.call_method("may_recv", ())
     }
 
     /// Returns the length of outgoing data of the HTTP message.
     #[inline]
     pub fn output(&self) -> Result<usize> {
-        self.class.call_method("output", ())
+        self.0.call_method("output", ())
     }
 
     /// Copies the `data` in front of incoming data of the HTTP message.
     /// Returns the copied length on success or -1 if data cannot be copied.
     #[inline]
     pub fn prepend(&self, data: impl AsRef<[u8]>) -> Result<isize> {
-        let data = self.lua.create_string(data.as_ref())?;
-        self.class.call_method::<_, isize>("prepend", data)
+        self.0.call_method::<isize>("prepend", LuaString::wrap(data))
     }
 
     /// Removes `length` bytes of incoming data of the HTTP message, starting at `offset`.
@@ -139,8 +128,8 @@ impl<'lua> HttpMessage<'lua> {
     pub fn remove(&self, offset: Option<isize>, length: Option<usize>) -> Result<isize> {
         let offset = offset.unwrap_or(0);
         match length {
-            Some(length) => self.class.call_method("remove", (offset, length)),
-            None => self.class.call_method("remove", offset),
+            Some(length) => self.0.call_method("remove", (offset, length)),
+            None => self.0.call_method("remove", offset),
         }
     }
 
@@ -151,7 +140,7 @@ impl<'lua> HttpMessage<'lua> {
     /// This function acts on whole header lines, regardless of the number of values they may contain.
     #[inline]
     pub fn rep_header(&self, name: &str, regex: &str, replace: &str) -> Result<()> {
-        self.class.call_method("rep_header", (name, regex, replace))
+        self.0.call_method("rep_header", (name, regex, replace))
     }
 
     /// Matches the regular expression on every comma-delimited value of header field `name` according to `regex`,
@@ -160,7 +149,7 @@ impl<'lua> HttpMessage<'lua> {
     /// The replacement value can contain back references like 1, 2, ...
     #[inline]
     pub fn rep_value(&self, name: &str, regex: &str, replace: &str) -> Result<()> {
-        self.class.call_method("rep_value", (name, regex, replace))
+        self.0.call_method("rep_value", (name, regex, replace))
     }
 
     /// Requires immediate send of the `data`.
@@ -169,8 +158,7 @@ impl<'lua> HttpMessage<'lua> {
     /// Because it is called in the filter context, it never yield.
     #[inline]
     pub fn send(&self, data: impl AsRef<[u8]>) -> Result<isize> {
-        let data = self.lua.create_string(data.as_ref())?;
-        self.class.call_method("send", data)
+        self.0.call_method("send", LuaString::wrap(data))
     }
 
     /// Replaces `length` bytes of incoming data of the HTTP message, starting at `offset`, by the string `data`.
@@ -182,11 +170,11 @@ impl<'lua> HttpMessage<'lua> {
         offset: Option<isize>,
         length: Option<usize>,
     ) -> Result<isize> {
-        let data = self.lua.create_string(data.as_ref())?;
+        let data = LuaString::wrap(data);
         let offset = offset.unwrap_or(0);
         match length {
-            Some(length) => self.class.call_method("set", (data, offset, length)),
-            None => self.class.call_method("set", (data, offset)),
+            Some(length) => self.0.call_method("set", (data, offset, length)),
+            None => self.0.call_method("set", (data, offset)),
         }
     }
 
@@ -194,63 +182,62 @@ impl<'lua> HttpMessage<'lua> {
     #[inline]
     pub fn set_eom(&self, eom: bool) -> Result<()> {
         match eom {
-            true => self.class.call_method("set_eom", ()),
-            false => self.class.call_method("unset_eom", ()),
+            true => self.0.call_method("set_eom", ()),
+            false => self.0.call_method("unset_eom", ()),
         }
     }
 
     /// Replaces all occurrence of all header matching the `name`, by only one containing the `value`.
     #[inline]
     pub fn set_header(&self, name: &str, value: impl AsRef<[u8]>) -> Result<()> {
-        let value = self.lua.create_string(value.as_ref())?;
-        self.class.call_method("set_header", (name, value))
+        self.0.call_method("set_header", (name, LuaString::wrap(value)))
     }
 
     /// Rewrites the request method.
     #[inline]
     pub fn set_method(&self, method: &str) -> Result<()> {
-        self.class.call_method("set_method", method)
+        self.0.call_method("set_method", method)
     }
 
     /// Rewrites the request path.
     #[inline]
     pub fn set_path(&self, path: &str) -> Result<()> {
-        self.class.call_method("set_path", path)
+        self.0.call_method("set_path", path)
     }
 
     /// Rewrites the request’s query string which appears after the first question mark "?".
     #[inline]
     pub fn set_query(&self, query: &str) -> Result<()> {
-        self.class.call_method("set_query", query)
+        self.0.call_method("set_query", query)
     }
 
     /// Rewrites the response status code with the new `status` and optional `reason`.
     /// If no custom reason is provided, it will be generated from the status.
     #[inline]
     pub fn set_status(&self, status: u16, reason: Option<&str>) -> Result<()> {
-        self.class.call_method("set_status", (status, reason))
+        self.0.call_method("set_status", (status, reason))
     }
 
     /// Rewrites the request URI.
     #[inline]
     pub fn set_uri(&self, uri: &str) -> Result<()> {
-        self.class.call_method("set_uri", uri)
+        self.0.call_method("set_uri", uri)
     }
 }
 
-impl<'lua> FromLua<'lua> for HttpMessage<'lua> {
+impl FromLua for HttpMessage {
     #[inline]
-    fn from_lua(value: Value<'lua>, lua: &'lua Lua) -> Result<Self> {
+    fn from_lua(value: Value, lua: &Lua) -> Result<Self> {
         let class = Table::from_lua(value, lua)?;
-        Ok(HttpMessage { lua, class })
+        Ok(HttpMessage(class))
     }
 }
 
-impl<'lua> Deref for HttpMessage<'lua> {
-    type Target = Table<'lua>;
+impl Deref for HttpMessage {
+    type Target = Table;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &self.class
+        &self.0
     }
 }

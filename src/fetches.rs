@@ -1,33 +1,29 @@
-use mlua::{FromLua, IntoLuaMulti, Lua, Result, Table, TableExt, Value};
+use mlua::{FromLua, IntoLuaMulti, Lua, ObjectLike, Result, Table, Value};
 
 /// The "Fetches" class allows to call a lot of internal HAProxy sample fetches.
 #[derive(Clone)]
-pub struct Fetches<'lua>(Table<'lua>);
+pub struct Fetches(Table);
 
-impl<'lua> Fetches<'lua> {
+impl Fetches {
     /// Executes an internal haproxy sample fetch.
     #[inline]
-    pub fn get<A, R>(&self, name: &str, args: A) -> Result<R>
+    pub fn get<R>(&self, name: &str, args: impl IntoLuaMulti) -> Result<R>
     where
-        A: IntoLuaMulti<'lua>,
-        R: FromLua<'lua>,
+        R: FromLua,
     {
         self.0.call_method(name, args)
     }
 
     /// The same as `get` but always returns string.
     #[inline]
-    pub fn get_str<A>(&self, name: &str, args: A) -> Result<String>
-    where
-        A: IntoLuaMulti<'lua>,
-    {
-        Ok((self.0.call_method::<_, Option<_>>(name, args)?).unwrap_or_default())
+    pub fn get_str(&self, name: &str, args: impl IntoLuaMulti) -> Result<String> {
+        Ok((self.0.call_method::<Option<_>>(name, args)?).unwrap_or_default())
     }
 }
 
-impl<'lua> FromLua<'lua> for Fetches<'lua> {
+impl FromLua for Fetches {
     #[inline]
-    fn from_lua(value: Value<'lua>, lua: &'lua Lua) -> Result<Self> {
+    fn from_lua(value: Value, lua: &Lua) -> Result<Self> {
         Ok(Fetches(Table::from_lua(value, lua)?))
     }
 }

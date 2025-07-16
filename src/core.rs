@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::ops::Deref;
 
-use mlua::{AnyUserData, AsChunk, FromLuaMulti, IntoLua, Lua, Result, Table, TableExt, Value};
+use mlua::{AnyUserData, AsChunk, FromLuaMulti, IntoLua, Lua, ObjectLike, Result, Table, Value};
 
 use crate::filter::UserFilterWrapper;
 use crate::{Proxy, UserFilter};
@@ -12,7 +12,7 @@ use crate::{Proxy, UserFilter};
 #[derive(Clone)]
 pub struct Core<'lua> {
     lua: &'lua Lua,
-    class: Table<'lua>,
+    class: Table,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -70,19 +70,19 @@ impl<'lua> Core<'lua> {
 
     /// Returns a map of declared proxies (frontends and backends), indexed by proxy name.
     #[inline]
-    pub fn proxies(&self) -> Result<HashMap<String, Proxy<'lua>>> {
+    pub fn proxies(&self) -> Result<HashMap<String, Proxy>> {
         self.class.get("proxies")
     }
 
     /// Returns a map of declared proxies with backend capability, indexed by the backend name.
     #[inline]
-    pub fn backends(&self) -> Result<HashMap<String, Proxy<'lua>>> {
+    pub fn backends(&self) -> Result<HashMap<String, Proxy>> {
         self.class.get("backends")
     }
 
     /// Returns a map of declared proxies with frontend capability, indexed by the frontend name.
     #[inline]
-    pub fn frontends(&self) -> Result<HashMap<String, Proxy<'lua>>> {
+    pub fn frontends(&self) -> Result<HashMap<String, Proxy>> {
         self.class.get("frontends")
     }
 
@@ -147,7 +147,7 @@ impl<'lua> Core<'lua> {
     /// Registers a function executed as an action.
     /// The expected actions are `tcp-req`, `tcp-res`, `http-req`, `http-res` or `http-after-res`.
     /// All the registered actions can be used in HAProxy with the prefix `lua.`.
-    pub fn register_action<A, F>(
+    pub fn register_action<F, A>(
         &self,
         name: &str,
         actions: &[Action],
@@ -155,8 +155,8 @@ impl<'lua> Core<'lua> {
         func: F,
     ) -> Result<()>
     where
-        A: FromLuaMulti<'lua>,
-        F: Fn(&'lua Lua, A) -> Result<()> + Send + 'static,
+        F: Fn(&Lua, A) -> Result<()> + Send + 'static,
+        A: FromLuaMulti,
     {
         let func = self.lua.create_function(func)?;
         let actions = actions.iter().map(|act| act.as_str()).collect::<Vec<_>>();
@@ -176,7 +176,7 @@ impl<'lua> Core<'lua> {
     ) -> Result<()>
     where
         F: Fn(A) -> FR + 'static,
-        A: FromLuaMulti<'lua> + 'static,
+        A: FromLuaMulti + 'static,
         FR: Future<Output = Result<()>> + Send + 'static,
     {
         let func = crate::r#async::create_async_function(self.lua, func)?;
@@ -188,16 +188,13 @@ impl<'lua> Core<'lua> {
     /// Same as [`register_action`] but using Lua function.
     ///
     /// [`register_action`]: #method.register_action
-    pub fn register_lua_action<'a, S>(
+    pub fn register_lua_action(
         &self,
         name: &str,
         actions: &[&str],
         nb_args: usize,
-        code: S,
-    ) -> Result<()>
-    where
-        S: AsChunk<'lua, 'a>,
-    {
+        code: impl AsChunk,
+    ) -> Result<()> {
         let func = self.lua.load(code).into_function()?;
         self.class
             .call_function("register_action", (name, actions.to_vec(), func, nb_args))
@@ -205,11 +202,11 @@ impl<'lua> Core<'lua> {
 
     /// Registers a function executed as a converter.
     /// All the registered converters can be used in HAProxy with the prefix `lua.`.
-    pub fn register_converters<A, R, F>(&self, name: &str, func: F) -> Result<()>
+    pub fn register_converters<F, A, R>(&self, name: &str, func: F) -> Result<()>
     where
-        A: FromLuaMulti<'lua>,
-        R: IntoLua<'lua>,
-        F: Fn(&'lua Lua, A) -> Result<R> + Send + 'static,
+        F: Fn(&Lua, A) -> Result<R> + Send + 'static,
+        A: FromLuaMulti,
+        R: IntoLua,
     {
         let func = self.lua.create_function(func)?;
         self.class
@@ -219,10 +216,7 @@ impl<'lua> Core<'lua> {
     /// Same as [`register_converters`] but using Lua function.
     ///
     /// [`register_converters`]: #method.register_converters
-    pub fn register_lua_converters<'a, S>(&self, name: &str, code: S) -> Result<()>
-    where
-        S: AsChunk<'lua, 'a>,
-    {
+    pub fn register_lua_converters(&self, name: &str, code: impl AsChunk) -> Result<()> {
         let func = self.lua.load(code).into_function()?;
         self.class
             .call_function("register_converters", (name, func))
@@ -230,11 +224,11 @@ impl<'lua> Core<'lua> {
 
     /// Registers a function executed as sample fetch.
     /// All the registered sample fetch can be used in HAProxy with the prefix `lua.`.
-    pub fn register_fetches<A, R, F>(&self, name: &str, func: F) -> Result<()>
+    pub fn register_fetches<F, A, R>(&self, name: &str, func: F) -> Result<()>
     where
-        A: FromLuaMulti<'lua>,
-        R: IntoLua<'lua>,
-        F: Fn(&'lua Lua, A) -> Result<R> + Send + 'static,
+        F: Fn(&Lua, A) -> Result<R> + Send + 'static,
+        A: FromLuaMulti,
+        R: IntoLua,
     {
         let func = self.lua.create_function(func)?;
         self.class.call_function("register_fetches", (name, func))
@@ -243,10 +237,7 @@ impl<'lua> Core<'lua> {
     /// Same as [`register_fetches`] but using Lua function.
     ///
     /// [`register_fetches`]: #method.register_fetches
-    pub fn register_lua_fetches<'a, S>(&self, name: &str, code: S) -> Result<()>
-    where
-        S: AsChunk<'lua, 'a>,
-    {
+    pub fn register_lua_fetches(&self, name: &str, code: impl AsChunk) -> Result<()> {
         let func = self.lua.load(code).into_function()?;
         self.class.call_function("register_fetches", (name, func))
     }
@@ -265,10 +256,12 @@ impl<'lua> Core<'lua> {
 
     /// Registers a Lua function executed as a service.
     /// All the registered service can be used in HAProxy with the prefix `lua.`.
-    pub fn register_lua_service<'a, S>(&self, name: &str, mode: ServiceMode, code: S) -> Result<()>
-    where
-        S: AsChunk<'lua, 'a>,
-    {
+    pub fn register_lua_service(
+        &self,
+        name: &str,
+        mode: ServiceMode,
+        code: impl AsChunk,
+    ) -> Result<()> {
         let func = self.lua.load(code).into_function()?;
         let mode = match mode {
             ServiceMode::Tcp => "tcp",
@@ -282,7 +275,7 @@ impl<'lua> Core<'lua> {
     /// This is useful to check any parameters.
     pub fn register_init<F>(&self, func: F) -> Result<()>
     where
-        F: Fn(&'lua Lua) -> Result<()> + Send + 'static,
+        F: Fn(&Lua) -> Result<()> + Send + 'static,
     {
         let func = self.lua.create_function(move |lua, ()| func(lua))?;
         self.class.call_function("register_init", func)
@@ -292,7 +285,7 @@ impl<'lua> Core<'lua> {
     /// The task is started when the HAProxy main scheduler starts.
     pub fn register_task<F>(&self, func: F) -> Result<()>
     where
-        F: Fn(&'lua Lua) -> Result<()> + Send + 'static,
+        F: Fn(&Lua) -> Result<()> + Send + 'static,
     {
         let func = self.lua.create_function(move |lua, ()| func(lua))?;
         self.class.call_function("register_task", func)
@@ -312,19 +305,13 @@ impl<'lua> Core<'lua> {
     /// Same as [`register_task`] but using Lua function.
     ///
     /// [`register_task`]: #method.register_task
-    pub fn register_lua_task<'a, S>(&self, code: S) -> Result<()>
-    where
-        S: AsChunk<'lua, 'a>,
-    {
+    pub fn register_lua_task(&self, code: impl AsChunk) -> Result<()> {
         let func = self.lua.load(code).into_function()?;
         self.class.call_function("register_task", func)
     }
 
     /// Registers a Lua function executed as a cli command.
-    pub fn register_lua_cli<'a, S>(&self, path: &[&str], usage: &str, code: S) -> Result<()>
-    where
-        S: AsChunk<'lua, 'a>,
-    {
+    pub fn register_lua_cli(&self, path: &[&str], usage: &str, code: impl AsChunk) -> Result<()> {
         let func = self.lua.load(code).into_function()?;
         self.class
             .call_function("register_cli", (path, usage, func))
@@ -338,7 +325,7 @@ impl<'lua> Core<'lua> {
 
     /// Parses ipv4 or ipv6 addresses and its facultative associated network.
     #[inline]
-    pub fn parse_addr(&self, addr: &str) -> Result<AnyUserData<'lua>> {
+    pub fn parse_addr(&self, addr: &str) -> Result<AnyUserData> {
         self.class.call_function("parse_addr", addr)
     }
 
@@ -349,17 +336,14 @@ impl<'lua> Core<'lua> {
         self.class.call_function("match_addr", (addr1, addr2))
     }
 
-    pub fn event_sub<'a, S>(&self, event_types: &[&str], code: S) -> Result<()>
-    where
-        S: AsChunk<'lua, 'a>,
-    {
+    pub fn event_sub(&self, event_types: &[&str], code: impl AsChunk) -> Result<()> {
         let func = self.lua.load(code).into_function()?;
         self.class.call_function("event_sub", (event_types, func))
     }
 }
 
-impl<'lua> Deref for Core<'lua> {
-    type Target = Table<'lua>;
+impl Deref for Core<'_> {
+    type Target = Table;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -367,9 +351,9 @@ impl<'lua> Deref for Core<'lua> {
     }
 }
 
-impl<'lua> IntoLua<'lua> for LogLevel {
+impl IntoLua for LogLevel {
     #[inline]
-    fn into_lua(self, lua: &'lua Lua) -> Result<Value<'lua>> {
+    fn into_lua(self, lua: &Lua) -> Result<Value> {
         (match self {
             LogLevel::Emerg => 0,
             LogLevel::Alert => 1,

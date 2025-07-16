@@ -115,11 +115,11 @@ fn get_future_id() -> FutureId {
 /// Creates a new async function that can be used in HAProxy configuration.
 ///
 /// Tokio runtime is automatically configured to use multiple threads.
-pub fn create_async_function<'lua, A, R, F, FR>(lua: &'lua Lua, func: F) -> Result<Function<'lua>>
+pub fn create_async_function<F, A, R, FR>(lua: &Lua, func: F) -> Result<Function>
 where
-    A: FromLuaMulti<'lua> + 'static,
-    R: IntoLuaMulti<'lua> + Send + 'static,
     F: Fn(A) -> FR + 'static,
+    A: FromLuaMulti + 'static,
+    R: IntoLuaMulti + Send + 'static,
     FR: Future<Output = Result<R>> + Send + 'static,
 {
     let port = get_notification_port();
@@ -130,7 +130,7 @@ where
 
         // Spawn the future in background
         let _guard = runtime().enter();
-        let args = match A::from_lua_multi(args, lua) {
+        let args = match A::from_lua_multi(args, &lua) {
             Ok(args) => args,
             Err(err) => return Either::Left(future::ready(Err(err))),
         };
@@ -152,7 +152,7 @@ where
     })
 }
 
-struct YieldFixUp<'lua>(&'lua Lua, Function<'lua>);
+struct YieldFixUp<'lua>(&'lua Lua, Function);
 
 impl<'lua> YieldFixUp<'lua> {
     fn new(lua: &'lua Lua, port: u16) -> Result<Self> {
@@ -228,7 +228,7 @@ impl<'lua> Drop for YieldFixUp<'lua> {
             let coroutine: Table = self.0.globals().get("coroutine")?;
             coroutine.set("yield", &self.1)
         })() {
-            println!("Error in YieldFixUp destructor: {}", e);
+            println!("Error in YieldFixUp destructor: {e}");
         }
     }
 }
@@ -242,7 +242,7 @@ impl ObjectPool {
 }
 
 impl UserData for ObjectPool {
-    fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
+    fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
         methods.add_method_mut("get", |_, this, ()| Ok(this.0.pop()));
 
         methods.add_method_mut("put", |_, this, obj: RegistryKey| {
@@ -256,15 +256,15 @@ impl UserData for ObjectPool {
 }
 
 pin_project_lite::pin_project! {
-    struct HaproxyFuture<'lua, F> {
-        lua: &'lua Lua,
+    struct HaproxyFuture<F> {
+        lua: Lua,
         id: FutureId,
         #[pin]
         fut: F,
     }
 }
 
-impl<F, R> Future for HaproxyFuture<'_, F>
+impl<F, R> Future for HaproxyFuture<F>
 where
     F: Future<Output = Result<R>>,
 {

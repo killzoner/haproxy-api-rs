@@ -1,37 +1,29 @@
 use std::ops::Deref;
 
-use mlua::{FromLua, IntoLua, Lua, Result, String as LuaString, Table, TableExt, Value};
+use mlua::{FromLua, IntoLua, Lua, ObjectLike, Result, String as LuaString, Table, Value};
 
 /// The "Channel" class contains all functions to manipulate channels.
 ///
 /// Please refer to HAProxy documentation to get more information.
 #[derive(Clone)]
-pub struct Channel<'lua> {
-    lua: &'lua Lua,
-    class: Table<'lua>,
-}
+pub struct Channel(Table);
 
-impl<'lua> Channel<'lua> {
+impl Channel {
     /// Copies the string string at the end of incoming data of the channel buffer.
     /// Returns the copied length on success or -1 if data cannot be copied.
     #[inline]
     pub fn append(&self, data: impl AsRef<[u8]>) -> Result<isize> {
-        let data = self.lua.create_string(data.as_ref())?;
-        self.class.call_method("append", data)
+        self.0.call_method("append", LuaString::wrap(data))
     }
 
     /// Returns `length` bytes of incoming data from the channel buffer, starting at the `offset`.
     /// The data are not removed from the buffer.
     #[inline]
-    pub fn data(
-        &self,
-        offset: Option<isize>,
-        length: Option<isize>,
-    ) -> Result<Option<LuaString<'lua>>> {
+    pub fn data(&self, offset: Option<isize>, length: Option<isize>) -> Result<Option<LuaString>> {
         let offset = offset.unwrap_or(0);
         match length {
-            Some(length) => self.class.call_method("data", (offset, length)),
-            None => self.class.call_method("data", offset),
+            Some(length) => self.0.call_method("data", (offset, length)),
+            None => self.0.call_method("data", offset),
         }
     }
 
@@ -39,13 +31,13 @@ impl<'lua> Channel<'lua> {
     /// Returns the amount of data forwarded and must not be called from an action to avoid yielding.
     #[inline]
     pub fn forward(&self, length: usize) -> Result<usize> {
-        self.class.call_method("forward", length)
+        self.0.call_method("forward", length)
     }
 
     /// Returns the length of incoming data in the channel buffer.
     #[inline]
     pub fn input(&self) -> Result<usize> {
-        self.class.call_method("input", ())
+        self.0.call_method("input", ())
     }
 
     /// Copies the `data` at the `offset` in incoming data of the channel buffer.
@@ -55,21 +47,21 @@ impl<'lua> Channel<'lua> {
     /// A positive `offset` is relative to the beginning of incoming data of the channel buffer while negative offset is relative to their end.
     #[inline]
     pub fn insert(&self, data: impl AsRef<[u8]>, offset: Option<isize>) -> Result<isize> {
-        let data = self.lua.create_string(data.as_ref())?;
         let offset = offset.unwrap_or(0);
-        self.class.call_method::<_, isize>("insert", (data, offset))
+        self.0
+            .call_method("insert", (LuaString::wrap(data), offset))
     }
 
     /// Returns true if the channel buffer is full.
     #[inline]
     pub fn is_full(&self) -> Result<bool> {
-        self.class.call_method("is_full", ())
+        self.0.call_method("is_full", ())
     }
 
     /// Returns true if the channel is the response one.
     #[inline]
     pub fn is_resp(&self) -> Result<bool> {
-        self.class.call_method("is_resp", ())
+        self.0.call_method("is_resp", ())
     }
 
     /// Parses `length` bytes of incoming data of the channel buffer, starting at `offset`,
@@ -77,36 +69,31 @@ impl<'lua> Channel<'lua> {
     ///
     /// The data are not removed from the buffer. If no line is found, all data are returned.
     #[inline]
-    pub fn line(
-        &self,
-        offset: Option<isize>,
-        length: Option<isize>,
-    ) -> Result<Option<LuaString<'lua>>> {
+    pub fn line(&self, offset: Option<isize>, length: Option<isize>) -> Result<Option<LuaString>> {
         let offset = offset.unwrap_or(0);
         match length {
-            Some(length) => self.class.call_method("line", (offset, length)),
-            None => self.class.call_method("line", offset),
+            Some(length) => self.0.call_method("line", (offset, length)),
+            None => self.0.call_method("line", offset),
         }
     }
 
     /// Returns true if the channel may still receive data.
     #[inline]
     pub fn may_recv(&self) -> Result<bool> {
-        self.class.call_method("may_recv", ())
+        self.0.call_method("may_recv", ())
     }
 
     /// Returns the length of outgoing data of the channel buffer.
     #[inline]
     pub fn output(&self) -> Result<usize> {
-        self.class.call_method("output", ())
+        self.0.call_method("output", ())
     }
 
     /// Copies the `data` in front of incoming data of the channel buffer.
     /// Returns the copied length on success or -1 if data cannot be copied.
     #[inline]
     pub fn prepend(&self, data: impl AsRef<[u8]>) -> Result<isize> {
-        let data = self.lua.create_string(data.as_ref())?;
-        self.class.call_method::<_, isize>("prepend", data)
+        self.0.call_method("prepend", LuaString::wrap(data))
     }
 
     /// Removes `length` bytes of incoming data of the channel buffer, starting at `offset`.
@@ -115,8 +102,8 @@ impl<'lua> Channel<'lua> {
     pub fn remove(&self, offset: Option<isize>, length: Option<usize>) -> Result<isize> {
         let offset = offset.unwrap_or(0);
         match length {
-            Some(length) => self.class.call_method("remove", (offset, length)),
-            None => self.class.call_method("remove", offset),
+            Some(length) => self.0.call_method("remove", (offset, length)),
+            None => self.0.call_method("remove", offset),
         }
     }
 
@@ -124,8 +111,7 @@ impl<'lua> Channel<'lua> {
     /// It means the `data` is copied at the beginning of incoming data of the channel buffer and immediately forwarded.
     #[inline]
     pub fn send(&self, data: impl AsRef<[u8]>) -> Result<isize> {
-        let data = self.lua.create_string(data.as_ref())?;
-        self.class.call_method("send", data)
+        self.0.call_method("send", LuaString::wrap(data))
     }
 
     /// Replaces `length` bytes of incoming data of the channel buffer, starting at `offset`, by the new `data`.
@@ -137,35 +123,35 @@ impl<'lua> Channel<'lua> {
         offset: Option<isize>,
         length: Option<usize>,
     ) -> Result<isize> {
-        let data = self.lua.create_string(data.as_ref())?;
+        let data = LuaString::wrap(data);
         let offset = offset.unwrap_or(0);
         match length {
-            Some(length) => self.class.call_method("set", (data, offset, length)),
-            None => self.class.call_method("set", (data, offset)),
+            Some(length) => self.0.call_method("set", (data, offset, length)),
+            None => self.0.call_method("set", (data, offset)),
         }
     }
 }
 
-impl<'lua> FromLua<'lua> for Channel<'lua> {
+impl FromLua for Channel {
     #[inline]
-    fn from_lua(value: Value<'lua>, lua: &'lua Lua) -> Result<Self> {
+    fn from_lua(value: Value, lua: &Lua) -> Result<Self> {
         let class = Table::from_lua(value, lua)?;
-        Ok(Channel { lua, class })
+        Ok(Channel(class))
     }
 }
 
-impl<'lua> IntoLua<'lua> for Channel<'lua> {
+impl IntoLua for Channel {
     #[inline]
-    fn into_lua(self, _: &'lua Lua) -> Result<Value<'lua>> {
-        Ok(Value::Table(self.class))
+    fn into_lua(self, _: &Lua) -> Result<Value> {
+        Ok(Value::Table(self.0))
     }
 }
 
-impl<'lua> Deref for Channel<'lua> {
-    type Target = Table<'lua>;
+impl Deref for Channel {
+    type Target = Table;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &self.class
+        &self.0
     }
 }

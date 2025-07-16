@@ -1,20 +1,20 @@
-use mlua::{FromLua, Lua, Result, Table, TableExt, Value};
+use mlua::{FromLua, Lua, ObjectLike, Result, Table, Value};
 
 /// A "Listener" class which indicates the manipulated listener.
 #[derive(Clone)]
-pub struct Listener<'lua>(Table<'lua>);
+pub struct Listener(Table);
 
-impl<'lua> Listener<'lua> {
+impl Listener {
     /// Returns server statistics.
     #[inline]
-    pub fn get_stats(&self) -> Result<Table<'lua>> {
+    pub fn get_stats(&self) -> Result<Table> {
         self.0.call_method("get_stats", ())
     }
 }
 
-impl<'lua> FromLua<'lua> for Listener<'lua> {
+impl FromLua for Listener {
     #[inline]
-    fn from_lua(value: Value<'lua>, lua: &'lua Lua) -> Result<Self> {
+    fn from_lua(value: Value, lua: &Lua) -> Result<Self> {
         Ok(Listener(Table::from_lua(value, lua)?))
     }
 }

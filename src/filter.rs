@@ -1,7 +1,7 @@
 use std::any::type_name;
 use std::ops::{Deref, DerefMut};
 
-use mlua::{AnyUserData, IntoLua, Lua, Result, Table, TableExt, UserData, Value, Variadic};
+use mlua::{AnyUserData, IntoLua, Lua, ObjectLike, Result, Table, UserData, Value, Variadic};
 
 use crate::{Channel, Core, HttpMessage, LogLevel, Txn};
 
@@ -91,23 +91,23 @@ pub trait UserFilter: Sized {
     /// Enable the data filtering on the channel `chn` for the current filter.
     /// It may be called at any time from any callback functions proceeding the data analysis.
     fn register_data_filter(lua: &Lua, txn: Txn, chn: Channel) -> Result<()> {
-        let global_filter = lua.globals().raw_get::<_, Table>("filter")?;
-        global_filter.call_function("register_data_filter", (txn.r#priv, chn))?;
+        let global_filter = lua.globals().raw_get::<Table>("filter")?;
+        global_filter.call_function::<()>("register_data_filter", (txn.r#priv, chn))?;
         Ok(())
     }
 
     /// Disable the data filtering on the channel `chn` for the current filter.
     /// It may be called at any time from any callback functions.
     fn unregister_data_filter(lua: &Lua, txn: Txn, chn: Channel) -> Result<()> {
-        let filter = lua.globals().raw_get::<_, Table>("filter")?;
-        filter.call_function("unregister_data_filter", (txn.r#priv, chn))?;
+        let filter = lua.globals().raw_get::<Table>("filter")?;
+        filter.call_function::<()>("unregister_data_filter", (txn.r#priv, chn))?;
         Ok(())
     }
 
     /// Set the pause timeout to the specified time, defined in milliseconds.
     fn wake_time(lua: &Lua, milliseconds: u64) -> Result<()> {
-        let filter = lua.globals().raw_get::<_, Table>("filter")?;
-        filter.call_function("wake_time", milliseconds)?;
+        let filter = lua.globals().raw_get::<Table>("filter")?;
+        filter.call_function::<()>("wake_time", milliseconds)?;
         Ok(())
     }
 }
@@ -145,7 +145,7 @@ where
                 };
                 let this = lua.create_sequence_from([Self(filter)])?;
                 let class = lua.registry_value::<Table>(&class_key)?;
-                this.set_metatable(Some(class));
+                this.set_metatable(Some(class))?;
                 Ok(Value::Table(this))
             })?,
         )?;
@@ -154,7 +154,7 @@ where
             class.raw_set(
                 "start_analyze",
                 lua.create_function(|lua, (t, mut txn, chn): (Table, Txn, Channel)| {
-                    let ud = t.raw_get::<_, AnyUserData>(1)?;
+                    let ud = t.raw_get::<AnyUserData>(1)?;
                     let mut this = ud.borrow_mut::<Self>()?;
                     txn.r#priv = Value::Table(t);
                     Self::process_result(lua, this.start_analyze(lua, txn, chn))
@@ -166,7 +166,7 @@ where
             class.raw_set(
                 "end_analyze",
                 lua.create_function(|lua, (t, mut txn, chn): (Table, Txn, Channel)| {
-                    let ud = t.raw_get::<_, AnyUserData>(1)?;
+                    let ud = t.raw_get::<AnyUserData>(1)?;
                     let mut this = ud.borrow_mut::<Self>()?;
                     txn.r#priv = Value::Table(t);
                     Self::process_result(lua, this.end_analyze(lua, txn, chn))
@@ -178,7 +178,7 @@ where
             class.raw_set(
                 "http_headers",
                 lua.create_function(|lua, (t, mut txn, msg): (Table, Txn, HttpMessage)| {
-                    let ud = t.raw_get::<_, AnyUserData>(1)?;
+                    let ud = t.raw_get::<AnyUserData>(1)?;
                     let mut this = ud.borrow_mut::<Self>()?;
                     txn.r#priv = Value::Table(t);
                     Self::process_result(lua, this.http_headers(lua, txn, msg))
@@ -190,7 +190,7 @@ where
             class.raw_set(
                 "http_payload",
                 lua.create_function(|lua, (t, mut txn, msg): (Table, Txn, HttpMessage)| {
-                    let ud = t.raw_get::<_, AnyUserData>(1)?;
+                    let ud = t.raw_get::<AnyUserData>(1)?;
                     let mut this = ud.borrow_mut::<Self>()?;
                     txn.r#priv = Value::Table(t);
                     let mut res = Variadic::new();
@@ -218,7 +218,7 @@ where
             class.raw_set(
                 "http_end",
                 lua.create_function(|lua, (t, mut txn, msg): (Table, Txn, HttpMessage)| {
-                    let ud = t.raw_get::<_, AnyUserData>(1)?;
+                    let ud = t.raw_get::<AnyUserData>(1)?;
                     let mut this = ud.borrow_mut::<Self>()?;
                     txn.r#priv = Value::Table(t);
                     Self::process_result(lua, this.http_end(lua, txn, msg))

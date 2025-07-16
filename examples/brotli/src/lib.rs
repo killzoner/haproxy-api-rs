@@ -36,7 +36,7 @@ impl BrotliFilter {
     fn process_request_headers(&mut self, txn: Txn, msg: HttpMessage) -> LuaResult<()> {
         // Check if we can prefer brotli over other encodings
         // We support only GET method
-        self.enabled = txn.f.get::<_, String>("method", ())? == "GET"
+        self.enabled = txn.f.get::<String>("method", ())? == "GET"
             && Self::prefer_brotli_encoding(msg.get_headers()?)?;
 
         if self.enabled && self.options.offload {
@@ -48,7 +48,7 @@ impl BrotliFilter {
 
     fn process_response_headers(&mut self, lua: &Lua, txn: Txn, msg: HttpMessage) -> LuaResult<()> {
         // We encode only "200" responses
-        if !self.enabled || txn.f.get::<_, u16>("status", ())? != 200 {
+        if !self.enabled || txn.f.get::<u16>("status", ())? != 200 {
             return Ok(());
         }
 
@@ -145,7 +145,7 @@ impl BrotliFilter {
 
     fn parse_args(args: LuaTable) -> LuaResult<BrotliFilterOptions> {
         // Fetch ready parsed options
-        if let Ok(options) = args.raw_get::<_, BrotliFilterOptions>(0) {
+        if let Ok(options) = args.raw_get::<BrotliFilterOptions>(0) {
             return Ok(options);
         }
 
@@ -209,7 +209,7 @@ impl UserFilter for BrotliFilter {
             let writer = self.writer.as_mut().expect("Brotli writer must exists");
             if !chunk.is_empty() {
                 writer
-                    .write_all(chunk)
+                    .write_all(&chunk)
                     .expect("Failed to write to brotli encoder");
                 writer.flush().expect("Failed to flush brotli encoder");
             }

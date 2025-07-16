@@ -2,38 +2,38 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 
 use mlua::{
-    FromLua, IntoLua, Lua, Result, String as LuaString, Table, TableExt, TablePairs, Value,
+    FromLua, IntoLua, Lua, ObjectLike, Result, String as LuaString, Table, TablePairs, Value,
 };
 
 /// The "Http" class contain all the HTTP manipulation functions.
 #[derive(Clone)]
-pub struct Http<'lua>(Table<'lua>);
+pub struct Http(Table);
 
 #[derive(Clone)]
-pub struct Headers<'lua>(Table<'lua>);
+pub struct Headers(Table);
 
-impl<'lua> Http<'lua> {
+impl Http {
     /// Returns a `Headers` table containing all the request headers.
     #[inline]
-    pub fn req_get_headers(&self) -> Result<Headers<'lua>> {
+    pub fn req_get_headers(&self) -> Result<Headers> {
         self.0.call_method("req_get_headers", ())
     }
 
     /// Returns a `Headers` table containing all the response headers.
     #[inline]
-    pub fn res_get_headers(&self) -> Result<Headers<'lua>> {
+    pub fn res_get_headers(&self) -> Result<Headers> {
         self.0.call_method("res_get_headers", ())
     }
 
     /// Appends an HTTP header field `name` with `value` in the request.
     #[inline]
-    pub fn req_add_header<V: IntoLua<'lua>>(&self, name: &str, value: V) -> Result<()> {
+    pub fn req_add_header(&self, name: &str, value: impl IntoLua) -> Result<()> {
         self.0.call_method("req_add_header", (name, value))
     }
 
     /// Appends an HTTP header field `name` with `value` in the response.
     #[inline]
-    pub fn res_add_header<V: IntoLua<'lua>>(&self, name: &str, value: V) -> Result<()> {
+    pub fn res_add_header(&self, name: &str, value: impl IntoLua) -> Result<()> {
         self.0.call_method("res_add_header", (name, value))
     }
 
@@ -51,13 +51,13 @@ impl<'lua> Http<'lua> {
 
     /// Replaces all occurrence of HTTP request header `name`, by only one containing the `value`.
     #[inline]
-    pub fn req_set_header<V: IntoLua<'lua>>(&self, name: &str, value: V) -> Result<()> {
+    pub fn req_set_header(&self, name: &str, value: impl IntoLua) -> Result<()> {
         self.0.call_method("req_set_header", (name, value))
     }
 
     /// Replaces all occurrence of HTTP response header `name`, by only one containing the `value`.
     #[inline]
-    pub fn res_set_header<V: IntoLua<'lua>>(&self, name: &str, value: V) -> Result<()> {
+    pub fn res_set_header(&self, name: &str, value: impl IntoLua) -> Result<()> {
         self.0.call_method("res_set_header", (name, value))
     }
 
@@ -112,8 +112,8 @@ impl<'lua> Http<'lua> {
     }
 }
 
-impl<'lua> Deref for Http<'lua> {
-    type Target = Table<'lua>;
+impl Deref for Http {
+    type Target = Table;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -121,16 +121,16 @@ impl<'lua> Deref for Http<'lua> {
     }
 }
 
-impl<'lua> FromLua<'lua> for Http<'lua> {
+impl FromLua for Http {
     #[inline]
-    fn from_lua(value: Value<'lua>, lua: &'lua Lua) -> Result<Self> {
+    fn from_lua(value: Value, lua: &Lua) -> Result<Self> {
         Ok(Http(Table::from_lua(value, lua)?))
     }
 }
 
-impl<'lua> Headers<'lua> {
+impl Headers {
     #[inline]
-    pub fn pairs<V: FromLua<'lua>>(self) -> HeaderPairs<'lua, V> {
+    pub fn pairs<V: FromLua>(&self) -> HeaderPairs<'_, V> {
         HeaderPairs {
             pairs: self.0.pairs(),
             phantom: PhantomData,
@@ -139,10 +139,10 @@ impl<'lua> Headers<'lua> {
 
     /// Returns all header fields by `name`.
     #[inline]
-    pub fn get<V: FromLua<'lua>>(&self, name: &str) -> Result<Vec<V>> {
+    pub fn get<V: FromLua>(&self, name: &str) -> Result<Vec<V>> {
         let name = name.to_ascii_lowercase();
         let mut result = Vec::new();
-        if let Some(values) = self.0.get::<_, Option<Table>>(name)? {
+        if let Some(values) = self.0.get::<Option<Table>>(name)? {
             let mut pairs = values.pairs::<i32, V>().collect::<Result<Vec<_>>>()?;
             pairs.sort_by_key(|x| x.0);
             result = pairs.into_iter().map(|(_, v)| v).collect();
@@ -152,17 +152,17 @@ impl<'lua> Headers<'lua> {
 
     /// Returns first header field by `name`.
     #[inline]
-    pub fn get_first<V: FromLua<'lua>>(&self, name: &str) -> Result<Option<V>> {
+    pub fn get_first<V: FromLua>(&self, name: &str) -> Result<Option<V>> {
         let name = name.to_ascii_lowercase();
-        if let Some(values) = self.0.get::<_, Option<Table>>(name)? {
+        if let Some(values) = self.0.get::<Option<Table>>(name)? {
             return values.get(0); // Indexes starts from "0"
         }
         Ok(None)
     }
 }
 
-impl<'lua> Deref for Headers<'lua> {
-    type Target = Table<'lua>;
+impl Deref for Headers {
+    type Target = Table;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -170,25 +170,25 @@ impl<'lua> Deref for Headers<'lua> {
     }
 }
 
-impl<'lua> FromLua<'lua> for Headers<'lua> {
+impl FromLua for Headers {
     #[inline]
-    fn from_lua(value: Value<'lua>, lua: &'lua Lua) -> Result<Self> {
+    fn from_lua(value: Value, lua: &Lua) -> Result<Self> {
         Ok(Headers(Table::from_lua(value, lua)?))
     }
 }
 
-pub struct HeaderPairs<'lua, V: FromLua<'lua>> {
-    pairs: TablePairs<'lua, LuaString<'lua>, Table<'lua>>,
+pub struct HeaderPairs<'a, V: FromLua> {
+    pairs: TablePairs<'a, LuaString, Table>,
     phantom: PhantomData<V>,
 }
 
-impl<'lua, V: FromLua<'lua>> Iterator for HeaderPairs<'lua, V> {
+impl<V: FromLua> Iterator for HeaderPairs<'_, V> {
     type Item = Result<(String, Vec<V>)>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.pairs.next() {
             Some(Ok(item)) => {
-                let name = item.0.to_string_lossy().into_owned();
+                let name = item.0.to_string_lossy();
                 let pairs = item.1.pairs::<i32, V>().collect::<Result<Vec<_>>>();
                 match pairs {
                     Ok(mut pairs) => {
