@@ -1,0 +1,5 @@
+---
+services:
+  lua-async-serve-file:
+    build: .
+    network_mode: host

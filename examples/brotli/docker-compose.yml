@@ -1,0 +1,5 @@
+---
+services:
+  lua-brotli:
+    build: .
+    network_mode: host

@@ -1,0 +1,5 @@
+---
+services:
+  lua-simple:
+    build: .
+    network_mode: host
