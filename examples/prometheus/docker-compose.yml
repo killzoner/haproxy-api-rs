@@ -1,0 +1,16 @@
+---
+services:
+  lua-prometheus:
+    build: .
+    ports:
+      - 8080:8080
+      - 9000:9000
+
+  http-listener:
+    image: mendhak/http-https-echo:38
+    environment:
+        - HTTP_PORT=8888
+        - HTTPS_PORT=9999
+    ports:
+        - "8888:8888"
+        - "9999:9999"

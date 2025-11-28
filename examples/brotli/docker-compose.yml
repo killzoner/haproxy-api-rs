@@ -2,4 +2,5 @@
 services:
   lua-brotli:
     build: .
-    network_mode: host
+    ports:
+      - 8080:8080

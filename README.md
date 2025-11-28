@@ -28,6 +28,7 @@ Please check the [async_serve_file](examples/async_serve_file) example to see ho
 Please check our [examples](examples):
 * [async serve file](examples/async_serve_file) - How to serve files asynchronously
 * [brotli](examples/brotli) - How to add brotli compression to HAProxy using filters API
+* [prometheus](examples/prometheus) - How to serve prometheus metrics from HAProxy after observing query params `foo` and `bar` in the backend queries
 * [simple](examples/simple) - How to register fetches and converters
 
 ## Restrictions

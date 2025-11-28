@@ -19,6 +19,7 @@ features = ["lua54"]
 members = [
     "examples/async_serve_file",
     "examples/brotli",
+    "examples/prometheus",
     "examples/simple",
 ]
 
